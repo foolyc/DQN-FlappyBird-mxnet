@@ -9,7 +9,6 @@
 # --------------------------------------------------------
 from config import *
 import cv2
-import sys
 import wrapped_flappy_bird as game
 import random
 import numpy as np
@@ -47,7 +46,7 @@ class DQNBird(object):
     def createNet(self, type=0):
         '''
         :param type:
-        type:0 predicted net
+        type:0 predicted net or target Q net
             1 trained net
         :return:
         '''
@@ -93,8 +92,6 @@ class DQNBird(object):
             self.tg_net.forward(mx.io.DataBatch([mx.nd.array(input_frame, self.ctx)], []))
             qvalue.append(self.tg_net.get_outputs()[0].asnumpy())
         qvalue_batch = np.squeeze(qvalue)
-
-
         target_batch[terminal_batch == 0] += GAMMA * np.max(qvalue_batch, axis=1)[terminal_batch == 0]
         self.q_net.forward(mx.io.DataBatch([mx.nd.array(state_batch, self.ctx), mx.nd.array(filter_batch, self.ctx)], [mx.nd.array(target_batch, self.ctx)] ), is_train=True)
         self.q_net.backward()
@@ -102,6 +99,7 @@ class DQNBird(object):
 
         if self.timestep % SAVE_STEP == 0:
             self.q_net.save_params('./snapshot/iter_%5d.params'%(self.timestep))
+        # periodically update the target net to ensure convergence
         if self.timestep % UPDATE_STEP ==0:
             arg_params, aux_params = self.q_net.get_params()
             print "update target network......."
@@ -120,10 +118,9 @@ class DQNBird(object):
         s_t = np.zeros([FRAME, HEIGHT, WIDTH])
         for i in range(FRAME):
             s_t[i, :, :] = x_t
-        # saving and loading networks
-        # start training
         epsilon = INITIAL_EPSILON
-        t = 0
+        if not args.mode == "train":
+            epsilon = 0
         while "flappy bird" != "angry bird":
             input_frame = np.reshape(s_t, (1, FRAME, HEIGHT, WIDTH))
             self.tg_net.forward(mx.io.DataBatch([mx.nd.array(input_frame, self.ctx)], []))
@@ -142,8 +139,6 @@ class DQNBird(object):
             else:
                 a_t[0] = 1 # do nothing
 
-
-
             # run the selected action and observe next state and reward
             x_t1_colored, r_t, terminal = game_state.frame_step(a_t)
             x_t1 = cv2.cvtColor(cv2.resize(x_t1_colored, (HEIGHT, WIDTH)), cv2.COLOR_BGR2GRAY)
@@ -152,7 +147,7 @@ class DQNBird(object):
             s_t1 = np.vstack((x_t1, s_t[:(FRAME-1), :, :]))
 
             if args.mode == "train":
-                # store the transition in D
+                # store the transition in replay memory
                 self.replayMemory.append((s_t, a_t, r_t, s_t1, terminal))
 
                 # scale down epsilon
