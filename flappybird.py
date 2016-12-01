@@ -28,20 +28,20 @@ class DQNBird(object):
             self.ctx = mx.gpu()
         else:
             self.ctx = mx.cpu()
-        # if args.mode == "train":
-        pre_model = None
-        if 1:
+        if args.mode == 'train':
             self.q_net = mx.mod.Module(symbol=self.createNet(1), data_names=['frame', 'act_mul'], label_names=['target', ], context=self.ctx)
             self.q_net.bind(data_shapes=[('frame', (BATCH, FRAME, HEIGHT, WIDTH)), ('act_mul', (BATCH, ACTIONS))], label_shapes=[('target', (BATCH,))], for_training=True)
-            self.q_net.init_params(initializer=mx.init.Xavier(factor_type="in", magnitude=2.34), arg_params=pre_model)
+            self.q_net.init_params(initializer=mx.init.Xavier(factor_type="in", magnitude=2.34))
             self.q_net.init_optimizer(optimizer='adam', optimizer_params={'learning_rate': 0.0002, 'wd': 0.0, 'beta1': 0.5})
-            shape = {"frame": (BATCH, FRAME, HEIGHT, WIDTH), 'act_mul':(BATCH, ACTIONS), 'target': (BATCH,)}
-            dt = mx.viz.plot_network(symbol=self.q_net.symbol, shape=shape)
-            dt.view()
+            if args.pretrain:
+                self.q_net.load_params(args.pretrain)
 
         self.tg_net = mx.mod.Module(symbol=self.createNet(), data_names=['frame',], label_names=[], context=self.ctx)
         self.tg_net.bind(data_shapes=[('frame', (1, FRAME, HEIGHT, WIDTH))], for_training=False)
-        self.tg_net.init_params(initializer=mx.init.Xavier(factor_type='in', magnitude=2.34), arg_params=pre_model)
+        self.tg_net.init_params(initializer=mx.init.Xavier(factor_type='in', magnitude=2.34))
+        if args.pretrain:
+            self.tg_net.load_params(args.pretrain)
+            print "load pretrained file......"
 
 
     def createNet(self, type=0):
@@ -143,9 +143,6 @@ class DQNBird(object):
                 a_t[0] = 1 # do nothing
 
 
-            # scale down epsilon
-            if epsilon > FINAL_EPSILON and self.timestep > OBSERVE:
-                epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
             # run the selected action and observe next state and reward
             x_t1_colored, r_t, terminal = game_state.frame_step(a_t)
@@ -154,40 +151,36 @@ class DQNBird(object):
             x_t1 = np.reshape(x_t1, (1, HEIGHT, WIDTH))
             s_t1 = np.vstack((x_t1, s_t[:(FRAME-1), :, :]))
 
-            # store the transition in D
-            self.replayMemory.append((s_t, a_t, r_t, s_t1, terminal))
+            if args.mode == "train":
+                # store the transition in D
+                self.replayMemory.append((s_t, a_t, r_t, s_t1, terminal))
 
-
-
-            if len(self.replayMemory) > REPLAY_MEMORY:
-                self.replayMemory.popleft()
-            # only train if done observing
-            if self.timestep > OBSERVE:
-                self.trainStep()
+                # scale down epsilon
+                if epsilon > FINAL_EPSILON and self.timestep > OBSERVE:
+                    epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+                if len(self.replayMemory) > REPLAY_MEMORY:
+                    self.replayMemory.popleft()
+                # only train if done observing
+                if self.timestep > OBSERVE:
+                    self.trainStep()
+                if self.timestep <= OBSERVE:
+                    state = "observe"
+                elif self.timestep > OBSERVE and t <= OBSERVE + EXPLORE:
+                    state = "explore"
+                else:
+                    state = "train"
+                print "TIMESTEP", self.timestep, "/ STATE", state, "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, "/ Q ", qvalue
             s_t = s_t1
             self.timestep += 1
-            if self.timestep <= OBSERVE:
-                state = "observe"
-            elif self.timestep > OBSERVE and t <= OBSERVE + EXPLORE:
-                state = "explore"
-            else:
-                state = "train"
-            print "TIMESTEP", self.timestep, "/ STATE", state, "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, "/ Q ", qvalue
 
-
-    def playGame(self):
-        pass
 
 
 if __name__ == "__main__":
-    #
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('mode', default="train", help="train or test")
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('mode', default="train", help="train or test")
+    parser.add_argument('-p', '--pretrain', default=None, help="pretrained model")
+
+    args = parser.parse_args()
     fb = DQNBird()
     fb.trainNet()
-    # if args.mode == "train":
-    #     # fb.trainNet()
-    #     fb.trainNet()
-    # else:
-    #     fb.playGame()
+
