@@ -34,6 +34,7 @@ class DQNBird(object):
             self.q_net.init_optimizer(optimizer='adam', optimizer_params={'learning_rate': 0.0002, 'wd': 0.0, 'beta1': 0.5})
             if args.pretrain:
                 self.q_net.load_params(args.pretrain)
+                print "load pretrained file......"
 
         self.tg_net = mx.mod.Module(symbol=self.createNet(), data_names=['frame',], label_names=[], context=self.ctx)
         self.tg_net.bind(data_shapes=[('frame', (1, FRAME, HEIGHT, WIDTH))], for_training=False)
@@ -160,7 +161,7 @@ class DQNBird(object):
                     self.trainStep()
                 if self.timestep <= OBSERVE:
                     state = "observe"
-                elif self.timestep > OBSERVE and t <= OBSERVE + EXPLORE:
+                elif self.timestep > OBSERVE and self.timestep <= OBSERVE + EXPLORE:
                     state = "explore"
                 else:
                     state = "train"
