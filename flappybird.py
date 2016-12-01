@@ -127,7 +127,7 @@ class DQNBird(object):
             qvalue = np.squeeze(self.tg_net.get_outputs()[0].asnumpy())
             a_t = np.zeros([ACTIONS])
             action_index = 0
-            if t % FRAME_PER_ACTION == 0:
+            if self.timestep % FRAME_PER_ACTION == 0:
                 if random.random() <= epsilon:
                     # print("----------Random Action----------")
                     action_index = random.randrange(ACTIONS)
