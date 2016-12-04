@@ -63,4 +63,3 @@ SAVE_STEP = 10000 # saving the params per step period
 highly based on the following repos:
 
 1. [yenchenlin/DeepLearningFlappyBird](https://github.com/yenchenlin/DeepLearningFlappyBird)
-2. [li-haoran/DRL-FlappyBird](https://github.com/li-haoran/DRL-FlappyBird)
